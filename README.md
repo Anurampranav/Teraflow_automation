@@ -22,7 +22,7 @@ desktop and phone.
    duration, last cycle time, and a full timestamped activity log, all
    updating automatically in your browser.
 
-## 1. Install
+## 1. Install !!
 
 ```bash
 pip install -r requirements.txt
