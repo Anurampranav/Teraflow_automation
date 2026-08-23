@@ -1,4 +1,4 @@
-# Soil IQ — Smart Irrigation Dashboard
+# TerraFlow — Smart Irrigation Dashboard
 
 A self-hosted web dashboard that connects to Tuya Cloud, verifies your soil
 sensor and XPR3SS irrigation valve live, and automates watering with a
