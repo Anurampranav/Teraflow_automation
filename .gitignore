@@ -1,0 +1,18 @@
+# Contains your Tuya credentials in plaintext - never commit this
+runtime_config.json
+.env
+*.env
+
+# Generated at runtime
+irrigation_log.jsonl
+irrigation_state.json
+*.log
+
+# Python / IDE cache
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+.idea/
+.pytest_cache/
+

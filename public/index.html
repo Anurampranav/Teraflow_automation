@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Soil IQ — Irrigation Automation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <span>Soil IQ</span>
+    </div>
+    <div class="status-pill" id="statusPill">
+      <span class="status-dot"></span>
+      <span id="statusText">Not connected</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- ============ SETUP WIZARD ============ -->
+    <div id="wizard" class="wizard">
+
+      <div class="wizard-steps">
+        <div class="wstep active" data-step="1"><span>1</span>Connect Tuya</div>
+        <div class="wstep" data-step="2"><span>2</span>Verify Devices</div>
+        <div class="wstep" data-step="3"><span>3</span>Map Sensors</div>
+        <div class="wstep" data-step="4"><span>4</span>Settings</div>
+      </div>
+
+      <!-- Step 1: Tuya connect -->
+      <div class="wpanel active" id="panel-1">
+        <h2>Connect to Tuya Cloud</h2>
+        <p class="wsub">From your Tuya IoT Platform Cloud Project → Overview page.</p>
+        <div class="form-grid">
+          <label>Access ID
+            <input type="text" id="accessId" placeholder="e.g. abc123xyz" autocomplete="off">
+          </label>
+          <label>Access Secret
+            <input type="password" id="accessSecret" placeholder="••••••••••••" autocomplete="off">
+          </label>
+          <label>API Endpoint (your region)
+            <select id="apiEndpoint">
+              <option value="https://openapi.tuyain.com">India — openapi.tuyain.com</option>
+              <option value="https://openapi.tuyaeu.com">Europe — openapi.tuyaeu.com</option>
+              <option value="https://openapi.tuyaus.com">Western America — openapi.tuyaus.com</option>
+              <option value="https://openapi.tuyacn.com">China — openapi.tuyacn.com</option>
+            </select>
+          </label>
+        </div>
+        <div class="wactions">
+          <span class="werror" id="err-1"></span>
+          <button class="btn primary" id="btn-connect">Connect</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Device verify -->
+      <div class="wpanel" id="panel-2">
+        <h2>Verify your devices</h2>
+        <p class="wsub">Paste the Device IDs from your Tuya Cloud Project's Devices tab.</p>
+        <div class="form-grid">
+          <label>Soil Sensor Device ID
+            <input type="text" id="soilSensorId" placeholder="e.g. bf0ee1a2b3c4d5e6">
+          </label>
+          <label>XPR3SS Device ID
+            <input type="text" id="xpr3ssId" placeholder="e.g. 6ce8f9a0b1c2d3e4">
+          </label>
+        </div>
+        <div class="wactions">
+          <span class="werror" id="err-2"></span>
+          <button class="btn ghost" data-back="1">Back</button>
+          <button class="btn primary" id="btn-verify">Verify devices</button>
+        </div>
+      </div>
+
+      <!-- Step 3: DP mapping -->
+      <div class="wpanel" id="panel-3">
+        <h2>Map sensor fields</h2>
+        <p class="wsub">These are the <em>actual live data points</em> your devices reported — pick the right ones so the automation reads the correct values.</p>
+
+        <div class="dp-preview" id="soilDpPreview"></div>
+        <div class="form-grid">
+          <label>Soil moisture field
+            <select id="moistureCode"></select>
+          </label>
+          <label>Soil temperature field (optional)
+            <select id="temperatureCode"></select>
+          </label>
+        </div>
+
+        <div class="dp-preview" id="valveDpPreview"></div>
+        <div class="form-grid">
+          <label>Valve switch field
+            <select id="switchCode"></select>
+          </label>
+        </div>
+
+        <div class="wactions">
+          <span class="werror" id="err-3"></span>
+          <button class="btn ghost" data-back="2">Back</button>
+          <button class="btn primary" id="btn-map">Save mapping</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Settings + start -->
+      <div class="wpanel" id="panel-4">
+        <h2>Automation settings</h2>
+        <p class="wsub">These safety rules run every cycle, in order, and always fail safe.</p>
+        <div class="form-grid two-col">
+          <label>Moisture threshold (%)
+            <input type="number" id="setThreshold" value="30" min="1" max="99">
+          </label>
+          <label>Poll interval (minutes)
+            <input type="number" id="setPoll" value="10" min="1">
+          </label>
+          <label>Cooldown between waterings (minutes)
+            <input type="number" id="setCooldown" value="60" min="0">
+          </label>
+          <label>Max irrigation duration (minutes)
+            <input type="number" id="setMaxDuration" value="10" min="1">
+          </label>
+          <label>Stale data window (minutes)
+            <input type="number" id="setStale" value="30" min="1">
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="setDryRun" checked>
+            Dry-run mode (log decisions, never send real commands)
+          </label>
+        </div>
+        <div class="wactions">
+          <span class="werror" id="err-4"></span>
+          <button class="btn ghost" data-back="3">Back</button>
+          <button class="btn primary" id="btn-save-settings">Save settings</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============ LIVE DASHBOARD ============ -->
+    <div id="dashboard" class="dashboard" style="display:none;">
+
+      <div class="dry-run-banner" id="dryRunBanner" style="display:none;">
+        <span>⚠ Dry-run mode is ON — decisions are logged but no real commands are sent to your valve.</span>
+        <button class="btn small" id="btn-edit-settings">Edit settings</button>
+      </div>
+
+      <div class="hero">
+        <div class="gauge-col">
+          <svg id="gauge" width="180" height="180" viewBox="0 0 180 180">
+            <g id="ticks"></g>
+            <circle cx="90" cy="90" r="72" fill="none" stroke="#383c3f" stroke-width="10" stroke-linecap="round"
+                    transform="rotate(-215 90 90)" opacity="0.5"
+                    style="stroke-dasharray: 339.3; stroke-dashoffset: 0;"/>
+            <circle id="gaugeFill" cx="90" cy="90" r="72" fill="none" stroke="#7fa0bf" stroke-width="10" stroke-linecap="round"
+                    transform="rotate(-215 90 90)"/>
+            <text id="gaugeValue" x="90" y="86" text-anchor="middle" font-family="Space Grotesk" font-weight="700" font-size="34" fill="#ece9e4">—</text>
+            <text x="90" y="108" text-anchor="middle" font-family="JetBrains Mono" font-size="10" letter-spacing="1" fill="#6c7174">MOISTURE</text>
+          </svg>
+          <div class="gauge-label">Soil sensor · live reading</div>
+        </div>
+
+        <div class="hero-info">
+          <div class="valve-row">
+            <div class="valve-state" id="valveState">
+              <span class="valve-led"></span>
+              <span id="valveStateText">Valve off</span>
+            </div>
+            <span class="valve-sub" id="valveSub">XPR3SS · idle</span>
+          </div>
+
+          <div class="hero-meta">
+            <div class="meta-item">
+              <span class="meta-label">Temperature</span>
+              <span class="meta-value" id="tempValue">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">On for</span>
+              <span class="meta-value" id="onDuration">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Last cycle</span>
+              <span class="meta-value" id="lastCycle">—</span>
+            </div>
+          </div>
+
+          <div class="control-row">
+            <button class="btn" id="btn-manual-on">Manual ON</button>
+            <button class="btn" id="btn-manual-off">Manual OFF</button>
+            <div class="control-spacer"></div>
+            <button class="btn stop-btn" id="btn-emergency">Emergency Stop</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="stat-label">Automation</span>
+          <span class="stat-value" id="automationStateValue">Stopped</span>
+          <span class="stat-sub" id="automationStateSub">Not running</span>
+          <button class="btn primary small" id="btn-toggle-automation" style="margin-top:8px;">Start Automation</button>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Threshold</span>
+          <span class="stat-value" id="thresholdValue">30%</span>
+          <span class="stat-sub">Waters below this level</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Poll interval</span>
+          <span class="stat-value" id="pollValue">10 min</span>
+          <span class="stat-sub">Sensor check frequency</span>
+        </div>
+      </div>
+
+      <div class="log-panel">
+        <div class="log-header">
+          <span class="log-title">Activity log</span>
+          <span class="log-count" id="logCount">—</span>
+        </div>
+        <div class="log-list" id="logList"></div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <footer>SOIL IQ · runs locally on your machine · credentials stored locally, never sent anywhere else</footer>
+
+  <!-- Confirm modal -->
+  <div class="modal-overlay" id="confirmModal" style="display:none;">
+    <div class="modal">
+      <h3>Start real automation?</h3>
+      <p id="confirmModalText">This will let the system send real ON/OFF commands to your XPR3SS valve based on live sensor readings, without asking you each time.</p>
+      <div class="modal-actions">
+        <button class="btn ghost" id="btn-confirm-cancel">Cancel</button>
+        <button class="btn primary" id="btn-confirm-yes">Yes, start automation</button>
+      </div>
+    </div>
+  </div>
+
+<script src="/app.js"></script>
+</body>
+</html>
