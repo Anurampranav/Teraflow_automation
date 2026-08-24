@@ -32,6 +32,51 @@
     return { ok: resp.ok, status: resp.status, data };
   }
 
+  // ---------- Sidebar & Module Navigation ----------
+  function switchModule(moduleId) {
+    document.querySelectorAll(".nav-item").forEach(item => {
+      item.classList.toggle("active", item.dataset.module === moduleId);
+    });
+    document.querySelectorAll(".module-view").forEach(view => {
+      view.classList.toggle("active", view.id === `module-${moduleId}`);
+    });
+
+    const sidebar = document.getElementById("sidebar");
+    if (sidebar) sidebar.classList.remove("open");
+
+    if (moduleId === "dashboard") {
+      buildGaugeTicks();
+      refreshState();
+      refreshLogs();
+    } else if (moduleId === "logs") {
+      refreshLogs();
+    } else if (moduleId === "settings" && latestState) {
+      populateRulesInputs(latestState.automation_settings, latestState.dry_run);
+    }
+  }
+
+  document.querySelectorAll(".nav-item").forEach(btn => {
+    btn.addEventListener("click", () => switchModule(btn.dataset.module));
+  });
+
+  const mobileToggle = document.getElementById("mobileToggle");
+  if (mobileToggle) {
+    mobileToggle.addEventListener("click", () => {
+      document.getElementById("sidebar").classList.toggle("open");
+    });
+  }
+  const backdrop = document.getElementById("sidebarBackdrop");
+  if (backdrop) {
+    backdrop.addEventListener("click", () => {
+      document.getElementById("sidebar").classList.remove("open");
+    });
+  }
+
+  const btnViewAllLogs = document.getElementById("btn-view-all-logs");
+  if (btnViewAllLogs) {
+    btnViewAllLogs.addEventListener("click", () => switchModule("logs"));
+  }
+
   // ---------- Wizard navigation ----------
   let currentStep = 1;
   let deviceData = null; // holds live data points returned by verify
@@ -52,7 +97,8 @@
   });
 
   function setError(step, message) {
-    document.getElementById(`err-${step}`).textContent = message || "";
+    const el = document.getElementById(`err-${step}`);
+    if (el) el.textContent = message || "";
   }
 
   // ---------- Step 1: connect ----------
@@ -129,6 +175,7 @@
 
   function fillSelect(id, options, preferred) {
     const el = document.getElementById(id);
+    if (!el) return;
     el.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join("");
     if (preferred && options.includes(preferred)) el.value = preferred;
   }
@@ -153,7 +200,7 @@
     goToStep(4);
   });
 
-  // ---------- Step 4: settings ----------
+  // ---------- Step 4: settings & Rules ----------
   document.getElementById("btn-save-settings").addEventListener("click", async () => {
     setError(4, "");
     const body = {
@@ -177,26 +224,78 @@
     showDashboard();
   });
 
+  function populateRulesInputs(settings, dryRun) {
+    if (!settings) return;
+    const setT = document.getElementById("setThresholdRules");
+    const setP = document.getElementById("setPollRules");
+    const setC = document.getElementById("setCooldownRules");
+    const setM = document.getElementById("setMaxDurationRules");
+    const setS = document.getElementById("setStaleRules");
+    const setD = document.getElementById("setDryRunRules");
+
+    if (setT) setT.value = settings.moisture_threshold_percent;
+    if (setP) setP.value = settings.poll_interval_minutes;
+    if (setC) setC.value = settings.cooldown_minutes;
+    if (setM) setM.value = settings.max_irrigation_duration_minutes;
+    if (setS) setS.value = settings.stale_data_minutes;
+    if (setD) setD.checked = dryRun;
+
+    // Also keep step 4 inputs in sync
+    const sT = document.getElementById("setThreshold");
+    const sP = document.getElementById("setPoll");
+    const sC = document.getElementById("setCooldown");
+    const sM = document.getElementById("setMaxDuration");
+    const sS = document.getElementById("setStale");
+    const sD = document.getElementById("setDryRun");
+    if (sT) sT.value = settings.moisture_threshold_percent;
+    if (sP) sP.value = settings.poll_interval_minutes;
+    if (sC) sC.value = settings.cooldown_minutes;
+    if (sM) sM.value = settings.max_irrigation_duration_minutes;
+    if (sS) sS.value = settings.stale_data_minutes;
+    if (sD) sD.checked = dryRun;
+  }
+
+  const btnSaveRules = document.getElementById("btn-save-rules");
+  if (btnSaveRules) {
+    btnSaveRules.addEventListener("click", async () => {
+      const errEl = document.getElementById("err-rules");
+      if (errEl) errEl.textContent = "";
+      const body = {
+        moisture_threshold_percent: parseFloat(document.getElementById("setThresholdRules").value),
+        poll_interval_minutes: parseFloat(document.getElementById("setPollRules").value),
+        cooldown_minutes: parseFloat(document.getElementById("setCooldownRules").value),
+        max_irrigation_duration_minutes: parseFloat(document.getElementById("setMaxDurationRules").value),
+        stale_data_minutes: parseFloat(document.getElementById("setStaleRules").value),
+        dry_run: document.getElementById("setDryRunRules").checked,
+      };
+
+      btnSaveRules.disabled = true; btnSaveRules.textContent = "Applying…";
+      const res = await API.settings(body);
+      btnSaveRules.disabled = false; btnSaveRules.textContent = "Apply rules";
+
+      if (!res.ok) {
+        if (errEl) errEl.textContent = res.data.error || "Could not save settings.";
+        return;
+      }
+      refreshState();
+      switchModule("dashboard");
+    });
+  }
+
   document.getElementById("btn-edit-settings").addEventListener("click", () => {
-    document.getElementById("dashboard").style.display = "none";
-    document.getElementById("wizard").style.display = "block";
-    goToStep(4);
+    switchModule("settings");
   });
 
   // ---------- Show dashboard ----------
   function showDashboard() {
-    document.getElementById("wizard").style.display = "none";
-    document.getElementById("dashboard").style.display = "block";
-    buildGaugeTicks();
-    refreshState();
-    refreshLogs();
+    switchModule("dashboard");
     startPolling();
   }
 
   // ---------- Gauge ----------
   function buildGaugeTicks() {
     const ticksGroup = document.getElementById("ticks");
-    if (ticksGroup.childElementCount > 0) return; // already built
+    if (!ticksGroup || ticksGroup.childElementCount > 0) return; // already built
     const tickCount = 24;
     for (let i = 0; i <= tickCount; i++) {
       const angle = (-215 + (250 * i / tickCount)) * Math.PI / 180;
@@ -214,9 +313,10 @@
 
   const CIRCUMFERENCE = 339.3;
   function setGauge(percent) {
+    const fill = document.getElementById("gaugeFill");
+    if (!fill) return;
     const hasValue = percent !== null && percent !== undefined;
     const p = Math.max(0, Math.min(100, hasValue ? percent : 0));
-    const fill = document.getElementById("gaugeFill");
     const offset = CIRCUMFERENCE - (CIRCUMFERENCE * p / 100);
     fill.style.strokeDasharray = CIRCUMFERENCE;
     fill.style.strokeDashoffset = hasValue ? offset : CIRCUMFERENCE;
@@ -224,7 +324,8 @@
     if (p >= 50) color = "#7fa0bf";
     else if (p >= 30) color = "#cf9c54";
     fill.setAttribute("stroke", color);
-    document.getElementById("gaugeValue").textContent = hasValue ? Math.round(percent) + "%" : "—";
+    const valEl = document.getElementById("gaugeValue");
+    if (valEl) valEl.textContent = hasValue ? Math.round(percent) + "%" : "—";
   }
 
   // ---------- Formatting ----------
@@ -281,7 +382,6 @@
       refreshState();
       refreshLogs();
     }, 4000);
-    // Also tick the "on for" duration every second between polls for a live feel.
     setInterval(tickDurationDisplay, 1000);
   }
 
@@ -303,63 +403,82 @@
 
   function setStatusPill(kind, text) {
     const pill = document.getElementById("statusPill");
+    if (!pill) return;
     pill.className = "status-pill " + kind;
-    document.getElementById("statusText").textContent = text;
+    const txt = document.getElementById("statusText");
+    if (txt) txt.textContent = text;
   }
 
   function renderState(s) {
     setGauge(s.moisture_percent);
-    document.getElementById("tempValue").textContent =
-      (s.temperature !== null && s.temperature !== undefined) ? s.temperature + "°" : "—";
+    const tempEl = document.getElementById("tempValue");
+    if (tempEl) {
+      tempEl.textContent = (s.temperature !== null && s.temperature !== undefined) ? s.temperature + "°" : "—";
+    }
 
     const valveStateEl = document.getElementById("valveState");
     const valveStateText = document.getElementById("valveStateText");
     const valveSub = document.getElementById("valveSub");
-    if (s.valve_on) {
-      valveStateEl.classList.add("on");
-      valveStateText.textContent = "Valve on";
-      valveSub.textContent = "XPR3SS · running";
-    } else {
-      valveStateEl.classList.remove("on");
-      valveStateText.textContent = "Valve off";
-      valveSub.textContent = "XPR3SS · idle";
+    if (valveStateEl) {
+      if (s.valve_on) {
+        valveStateEl.classList.add("on");
+        if (valveStateText) valveStateText.textContent = "Valve on";
+        if (valveSub) valveSub.textContent = "XPR3SS · running";
+      } else {
+        valveStateEl.classList.remove("on");
+        if (valveStateText) valveStateText.textContent = "Valve off";
+        if (valveSub) valveSub.textContent = "XPR3SS · idle";
+      }
     }
 
-    document.getElementById("lastCycle").textContent = fmtAgo(s.last_cycle_ts, s.server_time);
+    const lastCycleEl = document.getElementById("lastCycle");
+    if (lastCycleEl) lastCycleEl.textContent = fmtAgo(s.last_cycle_ts, s.server_time);
 
-    document.getElementById("thresholdValue").textContent =
-      s.automation_settings.moisture_threshold_percent + "%";
-    document.getElementById("pollValue").textContent =
-      s.automation_settings.poll_interval_minutes + " min";
+    const threshEl = document.getElementById("thresholdValue");
+    if (threshEl) threshEl.textContent = s.automation_settings.moisture_threshold_percent + "%";
+
+    const pollEl = document.getElementById("pollValue");
+    if (pollEl) pollEl.textContent = s.automation_settings.poll_interval_minutes + " min";
 
     const runningEl = document.getElementById("automationStateValue");
     const subEl = document.getElementById("automationStateSub");
     const toggleBtn = document.getElementById("btn-toggle-automation");
-    if (s.automation_running) {
-      runningEl.textContent = "Running";
-      subEl.textContent = s.dry_run ? "Dry-run mode" : "Live — sending real commands";
-      toggleBtn.textContent = "Stop Automation";
-      toggleBtn.classList.remove("primary");
-      setStatusPill(s.dry_run ? "warn" : "live", s.dry_run ? "Dry-run active" : "Automation live");
-    } else {
-      runningEl.textContent = "Stopped";
-      subEl.textContent = "Not running";
-      toggleBtn.textContent = "Start Automation";
-      toggleBtn.classList.add("primary");
-      setStatusPill("", "Connected · idle");
+    if (runningEl) {
+      if (s.automation_running) {
+        runningEl.textContent = "Running";
+        if (subEl) subEl.textContent = s.dry_run ? "Dry-run mode" : "Live — sending real commands";
+        if (toggleBtn) {
+          toggleBtn.textContent = "Stop Automation";
+          toggleBtn.classList.remove("primary");
+        }
+        setStatusPill(s.dry_run ? "warn" : "live", s.dry_run ? "Dry-run active" : "Automation live");
+      } else {
+        runningEl.textContent = "Stopped";
+        if (subEl) subEl.textContent = "Not running";
+        if (toggleBtn) {
+          toggleBtn.textContent = "Start Automation";
+          toggleBtn.classList.add("primary");
+        }
+        setStatusPill("", "Connected · idle");
+      }
     }
 
-    document.getElementById("dryRunBanner").style.display = s.dry_run ? "flex" : "none";
+    const dryBanner = document.getElementById("dryRunBanner");
+    if (dryBanner) dryBanner.style.display = s.dry_run ? "flex" : "none";
 
-    document.getElementById("btn-manual-on").disabled = s.automation_running;
-    document.getElementById("btn-manual-off").disabled = s.automation_running;
+    const btnOn = document.getElementById("btn-manual-on");
+    const btnOff = document.getElementById("btn-manual-off");
+    if (btnOn) btnOn.disabled = s.automation_running;
+    if (btnOff) btnOff.disabled = s.automation_running;
 
+    populateRulesInputs(s.automation_settings, s.dry_run);
     tickDurationDisplay();
   }
 
   function tickDurationDisplay() {
     if (!latestState) return;
     const el = document.getElementById("onDuration");
+    if (!el) return;
     if (latestState.valve_on && latestState.valve_on_since_ts) {
       const elapsed = (Date.now() / 1000) - latestState.valve_on_since_ts;
       el.textContent = fmtDuration(elapsed);
@@ -370,27 +489,30 @@
 
   function renderLogs(logs) {
     const listEl = document.getElementById("logList");
-    if (!logs.length) {
-      listEl.innerHTML = '<div class="empty-state"><p>No activity yet</p><p>Once automation starts, every decision will appear here.</p></div>';
-      document.getElementById("logCount").textContent = "0 entries";
-      return;
-    }
-    listEl.innerHTML = logs.map(entry => {
-      const time = new Date(entry.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      const moisture = (entry.moisture_percent !== null && entry.moisture_percent !== undefined)
-        ? entry.moisture_percent.toFixed(1) + "%" : "";
-      return `
-        <div class="log-row">
-          <span class="log-time">${time}</span>
-          <span class="log-marker ${markerClass(entry.action, entry.cycle_result)}"></span>
-          <span class="log-text">
-            <div class="log-action">${actionLabel(entry.action)}</div>
-            <div class="log-reason">${entry.reason || entry.error || ""}</div>
-          </span>
-          <span class="log-moisture">${moisture}</span>
-        </div>`;
-    }).join("");
-    document.getElementById("logCount").textContent = `${logs.length} entries`;
+    const fullListEl = document.getElementById("fullLogList");
+    const fullCountEl = document.getElementById("fullLogCount");
+
+    const html = !logs.length
+      ? '<div class="empty-state"><p>No activity yet</p><p>Once automation starts, every decision will appear here.</p></div>'
+      : logs.map(entry => {
+          const time = new Date(entry.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          const moisture = (entry.moisture_percent !== null && entry.moisture_percent !== undefined)
+            ? entry.moisture_percent.toFixed(1) + "%" : "";
+          return `
+            <div class="log-row">
+              <span class="log-time">${time}</span>
+              <span class="log-marker ${markerClass(entry.action, entry.cycle_result)}"></span>
+              <span class="log-text">
+                <div class="log-action">${actionLabel(entry.action)}</div>
+                <div class="log-reason">${entry.reason || entry.error || ""}</div>
+              </span>
+              <span class="log-moisture">${moisture}</span>
+            </div>`;
+        }).join("");
+
+    if (listEl) listEl.innerHTML = html;
+    if (fullListEl) fullListEl.innerHTML = html;
+    if (fullCountEl) fullCountEl.textContent = `${logs.length} entries`;
   }
 
   // ---------- Controls ----------
@@ -445,12 +567,15 @@
     refreshState(); refreshLogs();
   });
 
-  // ---------- Initial load: check if already configured (server restart case) ----------
+  // ---------- Initial load ----------
   (async function init() {
     const res = await API.state();
     if (res.ok && res.data.tuya_connected && res.data.devices_mapped) {
-      showDashboard();
+      switchModule("dashboard");
+    } else {
+      switchModule("setup");
     }
+    startPolling();
   })();
 
 })();
