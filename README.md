@@ -12,7 +12,7 @@ A self-hosted, ultra-premium web dashboard that connects to Tuya Cloud, verifies
 6. **Fail-Safe Automation Rules** — Set moisture thresholds, poll interval, cooldown between waterings, max irrigation duration, stale data cutoff, and dry-run safety mode.
 7. **Live Dashboard & Audit Log** — Real-time moisture gauge, valve on/off state, cycle timers, manual controls, and a complete historical activity log.
 
-## 1. Install
+## 1. Install !!
 
 ```bash
 pip install -r requirements.txt
