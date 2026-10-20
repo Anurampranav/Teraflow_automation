@@ -1,8 +1,8 @@
-# TerraFlow — Smart Irrigation Dashboard.
+# TerraFlow — Smart Irrigation Dashboard
 
 A self-hosted, ultra-premium web dashboard that connects to Tuya Cloud, verifies your soil sensor and XPR3SS irrigation valve live, and automates watering with a tested, fail-safe decision engine — featuring a left sidebar navigation layout and a responsive glassmorphism UI theme on both desktop and mobile.
 
-## What it does.
+## What it does
 
 1. **Left Sidebar Navigation** — Access all core modules (**Dashboard**, **Setup & Devices**, **Automation Rules**, and **Activity Log**) directly from an accessible left navigation sidebar.
 2. **Glassmorphism UI Theme** — Frosted translucent panels, ambient glow highlights, dynamic gauge animations, and crisp dark typography.
@@ -12,7 +12,7 @@ A self-hosted, ultra-premium web dashboard that connects to Tuya Cloud, verifies
 6. **Fail-Safe Automation Rules** — Set moisture thresholds, poll interval, cooldown between waterings, max irrigation duration, stale data cutoff, and dry-run safety mode.
 7. **Live Dashboard & Audit Log** — Real-time moisture gauge, valve on/off state, cycle timers, manual controls, and a complete historical activity log.
 
-## 1. Install !!
+## 1. Install !
 
 ```bash
 pip install -r requirements.txt
